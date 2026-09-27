@@ -1,29 +1,6 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// Controla um personagem isométrico onde:
-///   - A DIREÇÃO visual (para onde o sprite olha) segue o próprio movimento (WASD).
-///   - Correndo, se o jogador apertar a tecla de trás, o personagem mantém a
-///     direção em que já estava olhando e usa a animação de Run Backwards
-///     (desliza pra trás sem virar).
-///   - Ataques formam um combo (1 -> 2 -> 3).
-///   - Roll vira Long Roll automaticamente se o personagem estiver correndo.
-///   - Ações especiais (Block, Cast Spell, Pummel, Quick Shot, Special 1/2)
-///     usam botões dedicados.
-///
-/// Parâmetros esperados no Animator Controller:
-///   Float  DirX, DirY        -> alimentam TODOS os Blend Trees 8-dir
-///   Float  Speed              -> Idle / Walk / Run
-///   Bool   IsRunning
-///   Bool   IsMovingBackward    -> true quando corre na direção oposta à que olha
-///   Bool   IsCrouching
-///   Bool   IsBlocking
-///   Trigger Attack1, Attack2, Attack3
-///   Trigger Roll, LongRoll
-///   Trigger CastSpell, Pummel, QuickShot, Special1, Special2
-///   Trigger TakeDamage, Die, PlayIdle2
-/// </summary>
 [RequireComponent(typeof(Animator))]
 public class IsometricCharacterController : MonoBehaviour
 {
@@ -44,7 +21,7 @@ public class IsometricCharacterController : MonoBehaviour
     private Color originalSpriteColor;
     private Coroutine flashCoroutine;
 
-    // --- Estado de movimento ---
+    // Estado de movimento
     private Vector2 moveInput;
     private bool isRunning;
     private bool isMovingBackward;
@@ -53,10 +30,10 @@ public class IsometricCharacterController : MonoBehaviour
     [Tooltip("Dot product entre movimento e direção que o personagem olha, abaixo disso = considerado 'pra trás'.")]
     public float backwardDotThreshold = -0.3f;
 
-    // Última direção "de frente" do personagem (usada pelos Blend Trees)
+    // Última direção do personagem
     private Vector2 lastFacingDir = Vector2.down;
 
-    // --- Estado de combo ---
+    // Estado de combo
     private int comboStep = 0;
     private bool comboQueued = false;
     private bool isAttacking = false;
@@ -66,10 +43,10 @@ public class IsometricCharacterController : MonoBehaviour
     private float attackLockTimer = 0f;
     private bool comboAdvancedThisAttack = false;
 
-    // --- Estado de block ---
+    // Estado de block
     private bool isBlocking = false;
 
-    // --- Estado de ações especiais (Pummel, Quick Shot, Special 1/2) ---
+    // Estado de ações especiais
     private bool isPerformingAction = false;
     private float actionLockTimer = 0f;
     [Tooltip("Segurança pras ações especiais, igual o do combo de ataque.")]
@@ -82,7 +59,7 @@ public class IsometricCharacterController : MonoBehaviour
     private Vector2 dashDirection;
     private float dashTimer = 0f;
 
-    // --- Estado de idle variado ---
+    // Variação de Idle
     [Header("Idle Variation")]
     [Tooltip("Intervalo mínimo/máximo (segundos) parado até tentar tocar o Idle2.")]
     public float idleVariantMinDelay = 4f;
@@ -108,9 +85,9 @@ public class IsometricCharacterController : MonoBehaviour
 
     private void Update()
     {
-        HandleResetInput(); // funciona mesmo morto
+        HandleResetInput();
 
-        if (isDead) return; // trava tudo o resto
+        if (isDead) return;
 
         ReadMovementInput();
         UpdateBackwardState();
@@ -136,7 +113,7 @@ public class IsometricCharacterController : MonoBehaviour
             if (rb != null) rb.linearVelocity = Vector2.zero;
             return;
         }
-        // Trava movimento durante ataque/block/ação especial, se quiser esse comportamento
+       
         if (isAttacking || isBlocking || isPerformingAction)
         {
             if (rb != null) rb.linearVelocity = Vector2.zero;
@@ -160,8 +137,7 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    // ---------- MOVIMENTO ----------
-
+    // MOVIMENTO
     private void ReadMovementInput()
     {
         float x = Input.GetAxisRaw("Horizontal");
@@ -173,13 +149,7 @@ public class IsometricCharacterController : MonoBehaviour
         animator.SetBool("IsCrouching", isCrouching);
     }
 
-    // ---------- DIREÇÃO / BACKWARD ----------
-
-    /// <summary>
-    /// Compara o movimento atual com a direção em que o personagem já está
-    /// olhando. Se estiver correndo praticamente na direção oposta, marca
-    /// como "andando de costas".
-    /// </summary>
+    // DIREÇÃO/BACKWARD
     private void UpdateBackwardState()
     {
         if (moveInput.sqrMagnitude < 0.01f)
@@ -195,27 +165,21 @@ public class IsometricCharacterController : MonoBehaviour
         animator.SetBool("IsMovingBackward", isMovingBackward);
     }
 
-    /// <summary>
-    /// Atualiza para onde o personagem "olha". Normalmente segue o próprio
-    /// movimento. Exceção: se estiver correndo de costas, a direção fica
-    /// travada (o personagem não vira, só desliza pra trás).
-    /// </summary>
     private void UpdateFacingDirection()
     {
-        if (isDashing) return; // direção travada durante o dash
-        if (moveInput.sqrMagnitude < 0.01f) return; // parado: mantém a última direção
-        if (isMovingBackward) return; // correndo de costas: não vira
+        if (isDashing) return;
+        if (moveInput.sqrMagnitude < 0.01f) return;
+        if (isMovingBackward) return;
 
         lastFacingDir = moveInput;
         animator.SetFloat("DirX", lastFacingDir.x);
         animator.SetFloat("DirY", lastFacingDir.y);
     }
 
-    // ---------- COMBO DE ATAQUE ----------
-
+    // COMBO DE ATAQUE
     private void HandleCombo()
     {
-        if (Input.GetMouseButtonDown(0)) // clique esquerdo do mouse (direto, sem passar pelo Fire1)
+        if (Input.GetMouseButtonDown(0)) 
         {
             if (!isAttacking)
             {
@@ -224,9 +188,6 @@ public class IsometricCharacterController : MonoBehaviour
             }
             else if (comboStep < 3)
             {
-                // Guarda a intenção de continuar o combo. Não depende de tempo:
-                // só é consumida quando o Animation Event do fim do clipe atual
-                // chamar OnAttackAnimationEnd().
                 comboQueued = true;
                 Debug.Log("[DEBUG] Segundo clique registrado. comboQueued = true, comboStep atual = " + comboStep);
             }
@@ -248,9 +209,6 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Chame este método via Animation Event no fim de cada clipe de ataque.
-    /// </summary>
     public void OnAttackAnimationEnd()
     {
         Debug.Log("[DEBUG] OnAttackAnimationEnd chamado! comboQueued = " + comboQueued + ", comboStep = " + comboStep);
@@ -273,11 +231,6 @@ public class IsometricCharacterController : MonoBehaviour
         isAttacking = false;
     }
 
-    /// <summary>
-    /// Rede de segurança: se o Animation Event de algum ataque não disparar
-    /// (transição faltando no Animator, evento esquecido, etc.), isso libera
-    /// o personagem sozinho depois de um tempo, em vez de travar pra sempre.
-    /// </summary>
     private void HandleAttackSafety()
     {
         if (!isAttacking) return;
@@ -290,14 +243,6 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Alternativa ao Animation Event: pergunta pro Animator se o estado
-    /// atual tem a tag "Attack" e já passou de 90% da animação. Se sim,
-    /// chama a mesma lógica de continuar/encerrar o combo.
-    /// Marque a Tag "Attack" nos states Attack1, Attack2 e Attack3 no
-    /// Animator (Inspector do state, campo "Tag") — não precisa mexer
-    /// em cada um dos 8 clipes de direção.
-    /// </summary>
     private void MonitorAttackProgress()
     {
         if (!isAttacking || comboAdvancedThisAttack) return;
@@ -310,11 +255,11 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    // ---------- ROLL / LONG ROLL ----------
+    // ROLL E LONG ROLL
 
     private void HandleRoll()
     {
-        if (Input.GetButtonDown("Jump")) // exemplo: barra de espaço
+        if (Input.GetButtonDown("Jump"))
         {
             if (isRunning)
             {
@@ -328,10 +273,6 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Trava a direção atual e move o personagem uma distância fixa,
-    /// ignorando o input do jogador durante o tempo do dash.
-    /// </summary>
     private void StartDash()
     {
         isDashing = true;
@@ -353,11 +294,10 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    // ---------- BLOCK ----------
-
+    // BLOCK
     private void HandleBlock()
     {
-        bool holdingBlock = Input.GetMouseButton(1); // botão direito do mouse
+        bool holdingBlock = Input.GetMouseButton(1); 
 
         if (holdingBlock && !isBlocking)
         {
@@ -372,8 +312,7 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    // ---------- IDLE VARIADO ----------
-
+    // IDLE VARIADO 
     private void HandleIdleVariation()
     {
         bool isStandingStill = moveInput.sqrMagnitude < 0.01f
@@ -395,8 +334,7 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    // ---------- AÇÕES DEDICADAS ----------
-
+    // AÇÕES DEDICADAS
     private void HandleDedicatedActions()
     {
         if (Input.GetKeyDown(KeyCode.Q)) TriggerDedicatedAction("CastSpell");
@@ -413,12 +351,6 @@ public class IsometricCharacterController : MonoBehaviour
         animator.SetTrigger(triggerName);
     }
 
-    /// <summary>
-    /// Mesmo esquema do MonitorAttackProgress: pergunta pro Animator se o
-    /// estado atual tem a tag "Action" e já passou de 90% da animação.
-    /// Marque a Tag "Action" nos states Pummel, QuickShot, Special1 e
-    /// Special2 no Animator.
-    /// </summary>
     private void MonitorActionProgress()
     {
         if (!isPerformingAction) return;
@@ -438,7 +370,7 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    // ---------- DANO / MORTE (demo) ----------
+    // DANO E MORTE
 
     private void HandleDamageSimulation()
     {
@@ -448,11 +380,6 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Ponto de entrada pra "tomar um hit". Chame isso a partir de qualquer
-    /// lugar (botão de UI, inimigo, etc.) — não chame TakeDamage()/Die()
-    /// direto se quiser que o contador de hits funcione.
-    /// </summary>
     public void ReceiveHit()
     {
         if (isDead) return;
@@ -471,8 +398,6 @@ public class IsometricCharacterController : MonoBehaviour
 
     public void TakeDamage()
     {
-        // Reaproveita o mesmo esquema de trava por Tag do Attack/Action.
-        // Marque a Tag "Action" no state TakeDamage no Animator.
         isPerformingAction = true;
         actionLockTimer = 0f;
         animator.SetTrigger("TakeDamage");
@@ -483,7 +408,6 @@ public class IsometricCharacterController : MonoBehaviour
     {
         isDead = true;
 
-        // Limpa qualquer trava/estado que possa ter ficado no meio
         isAttacking = false;
         comboStep = 0;
         comboQueued = false;
@@ -520,11 +444,6 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Reseta o personagem pro estado inicial: zera contador de hits,
-    /// destrava tudo e usa Animator.Rebind() pra voltar o Animator inteiro
-    /// pro estado padrão (equivalente a como ele estava no Play).
-    /// </summary>
     public void ResetCharacter()
     {
         isDead = false;
