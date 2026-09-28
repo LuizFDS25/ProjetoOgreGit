@@ -5,6 +5,9 @@
 ## Link do Unity Play
 [https://play.unity.com/pt/upload](https://play.unity.com/en/games/fdea719c-1d8a-46ba-b19a-1ca1ed5040f5/animation-demo-ogre)
 
+## Vídeo de gameplay 
+https://youtu.be/poRjJ66KKDM?is=9Xfc-IQlfqAWNBwP
+
 ## Controles
 | Ação | Tecla/Botão |
 |---|---|
